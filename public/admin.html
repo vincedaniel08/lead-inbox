@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead inbox</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="narrow" id="login" hidden>
+  <h1>Owner login</h1>
+  <form id="loginForm">
+    <label>Email <input name="email" type="email" required autocomplete="username"></label>
+    <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+    <p id="loginMsg" class="err" role="alert"></p>
+    <button type="submit">Log in</button>
+  </form>
+</main>
+
+<main id="inbox" hidden>
+  <div class="bar" style="justify-content:space-between">
+    <h1>Lead inbox</h1>
+    <button class="ghost" id="logout">Log out</button>
+  </div>
+  <div class="bar">
+    <select id="fStatus" aria-label="Filter by status">
+      <option value="">All statuses</option>
+      <option>new</option><option>contacted</option><option>won</option><option>lost</option>
+    </select>
+    <select id="fCategory" aria-label="Filter by category">
+      <option value="">All categories</option>
+      <option>booking</option><option>question</option><option>complaint</option><option>other</option>
+    </select>
+  </div>
+  <p id="listMsg" class="muted" role="status"></p>
+  <div id="list"></div>
+</main>
+
+<template id="tpl">
+  <article class="lead">
+    <h3 data-k="name"></h3>
+    <div class="meta"><span data-k="email"></span> <span data-k="phone"></span> · <span data-k="created_at"></span></div>
+    <div class="tags"><span class="tag" data-k="service"></span><span class="tag" data-k="category"></span><span class="tag" data-k="urgency"></span></div>
+    <p class="body" data-k="message"></p>
+    <div class="edit">
+      <select data-f="status" aria-label="Status"><option>new</option><option>contacted</option><option>won</option><option>lost</option></select>
+      <textarea data-f="note" rows="2" maxlength="2000" placeholder="Add a note" aria-label="Note"></textarea>
+      <button data-f="save">Save</button>
+    </div>
+    <p class="muted" data-f="msg" role="status"></p>
+  </article>
+</template>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (path, opts = {}) => {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json' } });
+  if (res.status === 401 && path.startsWith('/api')) { show('login'); throw new Error('Please log in again'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+};
+const show = (which) => { $('login').hidden = which !== 'login'; $('inbox').hidden = which !== 'inbox'; };
+
+function render(lead) {
+  const el = $('tpl').content.firstElementChild.cloneNode(true);
+  for (const node of el.querySelectorAll('[data-k]')) {
+    const k = node.dataset.k;
+    node.textContent = k === 'created_at' ? new Date(lead[k]).toLocaleString() : lead[k] || '';
+  }
+  const urgency = el.querySelector('[data-k=urgency]');
+  urgency.textContent = lead.urgency + ' urgency';
+  if (lead.urgency === 'high') urgency.classList.add('high');
+  const f = (n) => el.querySelector(`[data-f=${n}]`);
+  f('status').value = lead.status;
+  f('note').value = lead.note;
+  f('save').onclick = async () => {
+    f('save').disabled = true; f('msg').textContent = 'Saving…';
+    try {
+      const updated = await api(`/api/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ status: f('status').value, note: f('note').value }) });
+      f('msg').textContent = 'Saved';
+      if (($('fStatus').value && updated.status !== $('fStatus').value)) el.remove();
+    } catch (err) { f('msg').textContent = err.message; }
+    finally { f('save').disabled = false; }
+  };
+  return el;
+}
+
+async function load() {
+  const q = new URLSearchParams();
+  if ($('fStatus').value) q.set('status', $('fStatus').value);
+  if ($('fCategory').value) q.set('category', $('fCategory').value);
+  $('listMsg').textContent = 'Loading…';
+  try {
+    const { leads } = await api('/api/leads?' + q);
+    $('list').replaceChildren(...leads.map(render));
+    $('listMsg').textContent = leads.length ? `${leads.length} lead(s), newest first` : 'No leads match.';
+  } catch (err) { $('listMsg').textContent = err.message; }
+}
+
+$('fStatus').onchange = $('fCategory').onchange = load;
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault(); $('loginMsg').textContent = '';
+  try {
+    await api('/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+    e.target.reset(); show('inbox'); load();
+  } catch (err) { $('loginMsg').textContent = err.message; }
+};
+$('logout').onclick = async () => { await api('/auth/logout', { method: 'POST' }); show('login'); };
+
+fetch('/auth/me').then((r) => { if (r.ok) { show('inbox'); load(); } else show('login'); });
+</script>
+</body>
+</html>

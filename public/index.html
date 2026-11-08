@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact us</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="narrow">
+  <h1>Get in touch</h1>
+  <p class="muted">Tell us what you need and we'll get back to you.</p>
+  <form id="form" novalidate>
+    <label>Name <input name="name" required maxlength="100" autocomplete="name"></label>
+    <label>Email <input name="email" type="email" required maxlength="254" autocomplete="email"></label>
+    <label>Phone <span class="muted">(optional)</span> <input name="phone" type="tel" maxlength="30" autocomplete="tel"></label>
+    <label>Service
+      <select name="service" required>
+        <option value="cleaning">Cleaning</option>
+        <option value="repair">Repair</option>
+        <option value="consultation">Consultation</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Message <textarea name="message" required maxlength="2000" rows="5"></textarea></label>
+    <p id="msg" role="status" aria-live="polite"></p>
+    <button type="submit">Send</button>
+  </form>
+</main>
+<script>
+const form = document.getElementById('form'), msg = document.getElementById('msg');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = form.querySelector('button');
+  btn.disabled = true; msg.className = ''; msg.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/leads', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.fromEntries(new FormData(form))),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong');
+    form.reset(); msg.className = 'ok'; msg.textContent = 'Thanks! We got your message.';
+  } catch (err) {
+    msg.className = 'err'; msg.textContent = err.message;
+  } finally { btn.disabled = false; }
+});
+</script>
+</body>
+</html>
