@@ -4,7 +4,6 @@ import { sortLead } from './sort.js';
 
 const SERVICES = ['cleaning', 'repair', 'consultation', 'other'];
 const STATUSES = ['new', 'contacted', 'won', 'lost'];
-const CATEGORIES = ['booking', 'question', 'complaint', 'other'];
 const SESSION_HOURS = 12;
 
 // Postgres if DATABASE_URL is set, otherwise a local PGlite file.
@@ -61,8 +60,7 @@ function validateLead(b) {
   return textError(b.name, 'name', { required: true, max: 100 })
     || textError(b.email, 'email', { required: true, max: 254 })
     || (EMAIL.test(b.email) ? null : 'email must be a valid email address')
-    || textError(b.phone, 'phone', { required: false, max: 30 })
-    || (b.phone && !/^[0-9+()\-.\s]*$/.test(b.phone) ? 'phone may only contain digits, spaces and + ( ) - .' : null)
+    || textError(b.phone, 'phone', { required: false, max: 50 })
     || (SERVICES.includes(b.service) ? null : `service must be one of: ${SERVICES.join(', ')}`)
     || textError(b.message, 'message', { required: true, max: 2000 });
 }
@@ -139,8 +137,8 @@ app.post('/api/leads', async (req, res) => {
 
 app.get('/api/leads', requireAuth, async (req, res) => {
   const { status, category } = req.query;
-  if (status !== undefined && !STATUSES.includes(status)) return res.status(400).json({ error: `status must be one of: ${STATUSES.join(', ')}` });
-  if (category !== undefined && !CATEGORIES.includes(category)) return res.status(400).json({ error: `category must be one of: ${CATEGORIES.join(', ')}` });
+  // Unknown filter values match nothing.
+  if ([status, category].some((v) => v !== undefined && typeof v !== 'string')) return res.json({ leads: [] });
   const where = [], params = [];
   if (status) { params.push(status); where.push(`status = $${params.length}`); }
   if (category) { params.push(category); where.push(`category = $${params.length}`); }

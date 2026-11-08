@@ -47,7 +47,7 @@ BASE_URL=http://localhost:3000 API_TOKEN=dev node test.js
 
 - The form, with the same checks on the server. Bad input gets a 400 and an error message, including broken JSON and wrong types.
 - Leads are stored in Postgres and survive restarts and redeploys.
-- Each lead gets a category and urgency. It tries AI first (8 second timeout) and uses keyword rules if that fails or there is no key.
+- Each lead gets a category and urgency. It tries AI first (8 second timeout) and uses keyword rules if that fails or there is no key. The rules look for complaints first, then scheduling words, then questions, then requests for work. `test.js` checks them against sample messages.
 - The webhook is sent after the lead is saved. If the webhook URL is down, the lead still saves and returns 201.
 - Dashboard: login, newest first, filter by status and category, change status, add a note. Works on a phone.
 - `test.js` covers the API rules in the brief. It passes locally. It also passes against the live URL, and the webhook reaches webhook.site.
@@ -56,9 +56,9 @@ BASE_URL=http://localhost:3000 API_TOKEN=dev node test.js
 
 - Text is saved exactly as typed. Nothing is trimmed. A name that is only spaces counts as empty.
 - Length limits count characters, so an emoji counts as 1.
-- Email must look like `name@domain.tld`. Phone is optional: digits, spaces and `+ ( ) - .`, max 30.
+- Email must look like `name@domain.tld`. Phone is optional free text (max 50 characters), so formats like "0917 123 4567 ext 2" work.
 - `service` must be lowercase, as in the brief.
-- The list returns the newest 500. An unknown `status` or `category` filter returns 400, not an empty list.
+- The list returns the newest 500. An unknown `status` or `category` filter value matches nothing and returns an empty list.
 - An id that isn't a number returns 404. Auth is checked first, so no token gives 401 even for a bad id.
 - PATCH with neither `status` nor `note` returns 400. Notes max out at 2000 characters.
 - Complaints are high urgency by default. "No rush" style messages are low.

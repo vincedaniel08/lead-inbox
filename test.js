@@ -3,12 +3,23 @@
 import assert from 'node:assert/strict';
 import { sortByRules } from './sort.js';
 
-// Fallback sorting rules
-assert.deepEqual(sortByRules({ service: 'cleaning', message: 'Can you come Tuesday?' }), { category: 'booking', urgency: 'normal' });
-assert.deepEqual(sortByRules({ service: 'repair', message: 'Worst service ever, I want a refund' }), { category: 'complaint', urgency: 'high' });
-assert.deepEqual(sortByRules({ service: 'repair', message: 'Pipe leaking, need someone today!' }).urgency, 'high');
-assert.deepEqual(sortByRules({ service: 'consultation', message: 'How much do you charge? No rush.' }), { category: 'question', urgency: 'low' });
-assert.equal(sortByRules({ service: 'other', message: 'Hello there' }).category, 'other');
+// Fallback sorting rules: [message, category, urgency]
+for (const [message, category, urgency] of [
+  ['Can you come Tuesday?', 'booking', 'normal'],
+  ['Is 3pm on Friday available?', 'booking', 'normal'],
+  ['Please fix my leaking sink ASAP', 'booking', 'high'],
+  ['Pipe burst in the kitchen, please send someone now', 'booking', 'high'],
+  ['I need my aircon serviced next month', 'booking', 'low'],
+  ['How much do you charge for a deep clean? No rush.', 'question', 'low'],
+  ['Do you offer window cleaning?', 'question', 'normal'],
+  ['Worst service ever, I want a refund', 'complaint', 'high'],
+  ['Your cleaner never showed up yesterday', 'complaint', 'high'],
+  ["The aircon you serviced still doesn't work", 'complaint', 'high'],
+  ['We are hiring, send your CV', 'other', 'normal'],
+  ['Hello there', 'other', 'normal'],
+]) {
+  assert.deepEqual(sortByRules({ message }), { category, urgency }, message);
+}
 
 const BASE = process.env.BASE_URL || 'http://localhost:3000';
 const TOKEN = process.env.API_TOKEN;
@@ -43,7 +54,7 @@ assert.ok(['high', 'normal', 'low'].includes(lead.urgency));
 for (const bad of [
   {}, { ...good, name: '' }, { ...good, name: '   ' }, { ...good, name: 'x'.repeat(101) }, { ...good, email: 'nope' },
   { ...good, service: 'plumbing' }, { ...good, message: '' }, { ...good, message: 'x'.repeat(2001) },
-  { ...good, name: 123 }, { ...good, phone: 'call me maybe' }, [], 'not json{',
+  { ...good, name: 123 }, { ...good, phone: '1'.repeat(51) }, [], 'not json{',
 ]) {
   r = await call('POST', '/api/leads', bad, {});
   assert.equal(r.status, 400, `expected 400 for ${JSON.stringify(bad).slice(0, 60)}`);
@@ -91,6 +102,11 @@ assert.equal((await call('PATCH', `/api/leads/${lead.id}`, {})).status, 400);
 r = await call('GET', `/api/leads?status=contacted&category=${lead.category}`);
 assert.ok(r.body.leads.some((l) => l.id === lead.id));
 assert.ok(r.body.leads.every((l) => l.status === 'contacted' && l.category === lead.category));
+r = await call('GET', '/api/leads?status=foo');
+assert.equal(r.status, 200);
+assert.deepEqual(r.body.leads, [], 'unknown filter matches nothing');
+r = await call('POST', '/api/leads', { ...good, phone: '0917 123 4567 ext 2' }, {});
+assert.equal(r.status, 201, 'free-form phone is accepted');
 r = await call('GET', '/api/leads?status=new');
 assert.ok(r.body.leads.every((l) => l.status === 'new') && !r.body.leads.some((l) => l.id === lead.id));
 
