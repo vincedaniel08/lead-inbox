@@ -1,6 +1,7 @@
 # Lead inbox handoff
 
-Live URL: LIVE_URL_HERE
+Live URL: https://lead-inbox-three.vercel.app
+Repo: https://github.com/vincedaniel08/lead-inbox
 
 - Form: `/`
 - Dashboard: `/admin.html`
@@ -16,7 +17,7 @@ These are test values. Change them before real use.
 
 ## Stack
 
-Node 20, Express 5, Postgres on Neon, hosted on Vercel. The form and dashboard are plain HTML pages with no build step.
+Node 20, Express 5, Postgres on Neon, hosted on Vercel. `api/index.js` and `vercel.json` route `/api` and `/auth` to the Express app; Vercel serves `public/` as static files. The form and dashboard are plain HTML pages with no build step.
 
 ## How to run it
 
@@ -49,7 +50,7 @@ BASE_URL=http://localhost:3000 API_TOKEN=dev node test.js
 - Each lead gets a category and urgency. It tries AI first (8 second timeout) and uses keyword rules if that fails or there is no key.
 - The webhook is sent after the lead is saved. If the webhook URL is down, the lead still saves and returns 201.
 - Dashboard: login, newest first, filter by status and category, change status, add a note. Works on a phone.
-- `test.js` covers the API rules in the brief. It passes locally. Live run: LIVE_TEST_RESULT.
+- `test.js` covers the API rules in the brief. It passes locally. It also passes against the live URL, and the webhook reaches webhook.site.
 
 ## Calls I made
 
