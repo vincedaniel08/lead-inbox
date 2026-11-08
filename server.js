@@ -7,8 +7,7 @@ const STATUSES = ['new', 'contacted', 'won', 'lost'];
 const CATEGORIES = ['booking', 'question', 'complaint', 'other'];
 const SESSION_HOURS = 12;
 
-// ---------- database ----------
-// Postgres when DATABASE_URL is set (production); embedded PGlite file otherwise (local dev).
+// Postgres if DATABASE_URL is set, otherwise a local PGlite file.
 let dbPromise;
 function db() {
   dbPromise ??= (async () => {
@@ -45,8 +44,7 @@ const toLead = (r) => ({
   created_at: new Date(r.created_at).toISOString().replace(/\.\d{3}Z$/, 'Z'),
 });
 
-// ---------- validation ----------
-const chars = (s) => [...s].length; // count characters, not UTF-16 units
+const chars = (s) => [...s].length;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function textError(value, field, { required, max }) {
@@ -69,7 +67,6 @@ function validateLead(b) {
     || textError(b.message, 'message', { required: true, max: 2000 });
 }
 
-// ---------- auth ----------
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(sha(a), sha(b));
 const secret = () => process.env.SESSION_SECRET || process.env.API_TOKEN || '';
@@ -84,15 +81,14 @@ function requireAuth(req, res, next) {
   const token = process.env.API_TOKEN;
   const m = /^Bearer (.+)$/.exec(req.headers.authorization || '');
   if (token && m && safeEqual(m[1], token)) return next();
-  if (!req.headers.authorization && hasSession(req)) return next(); // dashboard cookie
+  if (!req.headers.authorization && hasSession(req)) return next();
   res.status(401).json({ error: 'Missing or invalid token' });
 }
 
-// ---------- app ----------
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '100kb' }));
-app.use(express.static('public')); // Vercel serves public/ itself; this is for local runs
+app.use(express.static('public'));
 
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body || {};
@@ -124,7 +120,7 @@ app.post('/api/leads', async (req, res) => {
   );
   const saved = toLead(rows[0]);
 
-  // Lead is already saved; a dead webhook only gets logged. Awaited so serverless hosts don't cut it off.
+  // Lead is saved already, so a failed webhook is only logged.
   if (process.env.WEBHOOK_URL) {
     try {
       const r = await fetch(process.env.WEBHOOK_URL, {
@@ -155,7 +151,7 @@ app.get('/api/leads', requireAuth, async (req, res) => {
   res.json({ leads: rows.map(toLead) });
 });
 
-// Non-numeric or out-of-range ids can't exist, so they are 404 like any missing id.
+// Non-numeric ids return 404 like a missing id.
 const parseId = (s) => (/^\d{1,9}$/.test(s) ? Number(s) : null);
 
 app.get('/api/leads/:id', requireAuth, async (req, res) => {
@@ -188,7 +184,7 @@ app.patch('/api/leads/:id', requireAuth, async (req, res) => {
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
-// Bad JSON, oversized bodies, and anything unexpected: clear JSON error, never a crash page.
+// JSON errors for bad bodies and anything unexpected.
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Body must be valid JSON' });
   if (err.type === 'entity.too.large') return res.status(400).json({ error: 'Body is too large' });

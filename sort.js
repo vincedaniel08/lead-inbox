@@ -5,7 +5,6 @@ export const URGENCIES = ['high', 'normal', 'low'];
 
 const has = (text, words) => new RegExp(`\\b(${words.join('|')})\\b`, 'i').test(text);
 
-// ponytail: keyword rules, good enough as the fallback; the AI path handles nuance.
 export function sortByRules({ service = '', message = '' }) {
   const text = `${service} ${message}`;
   let category = 'other';

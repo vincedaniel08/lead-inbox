@@ -32,7 +32,7 @@ const form = document.getElementById('form'), msg = document.getElementById('msg
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = form.querySelector('button');
-  btn.disabled = true; msg.className = ''; msg.textContent = 'Sending…';
+  btn.disabled = true; msg.className = ''; msg.textContent = 'Sending...';
   try {
     const res = await fetch('/api/leads', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

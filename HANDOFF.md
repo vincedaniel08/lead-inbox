@@ -1,32 +1,33 @@
-# Lead inbox — handoff
+# Lead inbox handoff
 
-**Live:** LIVE_URL_HERE
-- Public form: `/`
-- Owner dashboard: `/admin.html`
+Live URL: LIVE_URL_HERE
+
+- Form: `/`
+- Dashboard: `/admin.html`
 - API: `/api/leads`
 
-## Credentials (test values; rotate before real use)
+## Logins
 
-| What | Value |
-|---|---|
-| Owner login (dashboard) | `owner@likeablelosers.test` / `Olu7wP2vfKU5` |
-| `API_TOKEN` | `bQQ_tYIc2D_3QPU8Wbs8X-irW66ejW1w` |
-| `WEBHOOK_URL` | `https://webhook.site/5b905039-3a91-4257-a477-3a910ee4db0c` |
+- Owner login: `owner@likeablelosers.test` / `Olu7wP2vfKU5`
+- API_TOKEN: `bQQ_tYIc2D_3QPU8Wbs8X-irW66ejW1w`
+- WEBHOOK_URL: `https://webhook.site/5b905039-3a91-4257-a477-3a910ee4db0c`
+
+These are test values. Change them before real use.
 
 ## Stack
 
-Node 20+ / Express 5, Postgres (Neon, free tier) in production, deployed on Vercel. Sorting uses Claude when `ANTHROPIC_API_KEY` is set and falls back to keyword rules. No build step and no frontend framework: just two static HTML pages.
+Node 20, Express 5, Postgres on Neon, hosted on Vercel. The form and dashboard are plain HTML pages with no build step.
 
-## Run it locally
+## How to run it
 
 ```bash
 npm install
 API_TOKEN=dev OWNER_EMAIL=me@example.com OWNER_PASSWORD=dev node server.js
 ```
 
-Open http://localhost:3000. With no `DATABASE_URL` set, it uses an embedded Postgres (PGlite) stored in `./.data`, so you don't need Docker.
+Then open http://localhost:3000. If `DATABASE_URL` is not set, it uses PGlite (Postgres in a local folder, `./.data`), so you don't need to install a database.
 
-Contract test (runs against any deployment):
+To test the API against any URL:
 
 ```bash
 BASE_URL=http://localhost:3000 API_TOKEN=dev node test.js
@@ -34,47 +35,44 @@ BASE_URL=http://localhost:3000 API_TOKEN=dev node test.js
 
 ## Environment variables
 
-| Name | Required | Notes |
-|---|---|---|
-| `DATABASE_URL` | prod | Postgres connection string. The table is created on first request. |
-| `API_TOKEN` | yes | Bearer token for every route except `POST /api/leads`. If it's unset, all protected routes return 401. |
-| `OWNER_EMAIL`, `OWNER_PASSWORD` | yes | Dashboard login. |
-| `WEBHOOK_URL` | no | Gets `{"event":"lead.created","lead":{...}}` for every new lead. |
-| `ANTHROPIC_API_KEY` | no | Turns on AI sorting. `ANTHROPIC_MODEL` overrides the model (default `claude-opus-5-5`; `claude-haiku-5-5` is cheaper and good enough for this). |
-| `SESSION_SECRET` | no | Signs dashboard cookies. Defaults to `API_TOKEN`. |
+- `DATABASE_URL`: Postgres connection string. The table is created on the first request.
+- `API_TOKEN`: needed for every route except `POST /api/leads`. If it's missing, those routes always return 401.
+- `OWNER_EMAIL`, `OWNER_PASSWORD`: dashboard login.
+- `WEBHOOK_URL`: optional. Gets a POST for every new lead.
+- `ANTHROPIC_API_KEY`: optional. Turns on AI sorting. `ANTHROPIC_MODEL` changes the model (default `claude-opus-5-5`).
+- `SESSION_SECRET`: optional. Signs the dashboard cookie. Uses `API_TOKEN` if not set.
 
 ## What works
 
-- Public form with server-side validation. Bad input gets a 400 with `{"error": "..."}`. That includes invalid JSON, wrong types, oversized bodies and NUL bytes.
-- Leads are stored in Postgres, so they survive a refresh, a restart and a redeploy.
-- Every new lead gets a category and an urgency. AI is tried first (8s timeout); keyword rules take over on any failure or when there's no key.
-- Webhook fires after the lead is saved. If it's down or slow (5s timeout), the error is logged and the lead still returns 201.
-- Owner dashboard: login, newest first, filter by status and category, change status, add a note. It works at phone width.
-- API matches the brief: 201/200/400/401/404, field names and order, `created_at` like `2026-11-07T09:30:00Z`.
-- `test.js` checks the whole contract, including a lead still saving when the webhook is down and data surviving a restart. It passes locally. Live run: LIVE_TEST_RESULT.
+- The form, with the same checks on the server. Bad input gets a 400 and an error message, including broken JSON and wrong types.
+- Leads are stored in Postgres and survive restarts and redeploys.
+- Each lead gets a category and urgency. It tries AI first (8 second timeout) and uses keyword rules if that fails or there is no key.
+- The webhook is sent after the lead is saved. If the webhook URL is down, the lead still saves and returns 201.
+- Dashboard: login, newest first, filter by status and category, change status, add a note. Works on a phone.
+- `test.js` covers the API rules in the brief. It passes locally. Live run: LIVE_TEST_RESULT.
 
-## Calls I made where the brief was open
+## Calls I made
 
-- **Text is stored exactly as typed.** Nothing is trimmed or escaped on the server. A name that is only spaces counts as empty. The dashboard renders text with `textContent`, so HTML can't inject.
-- **Length = characters, not bytes.** An emoji counts as 1.
-- **Email** must look like `x@y.z` (no spaces, max 254 characters). **Phone** is optional: digits, spaces and `+ ( ) - .` only, max 30 characters. `null` or a missing phone becomes `""`.
-- **`service` is case-sensitive** (`cleaning` works, `Cleaning` doesn't).
-- **List** returns the newest 500. An unknown `?status=` or `?category=` value returns 400 instead of an empty list, so typos are visible.
-- **Ids that aren't numbers** (`/api/leads/abc`) return 404, the same as a missing id. Auth is checked first, so no token means 401 even for a missing id.
-- **PATCH** with neither `status` nor `note` returns 400. The note max is 2000 characters. `note: ""` clears it.
-- **Urgency rules:** emergencies and same-day requests are high. Complaints default to high, because an angry customer needs a fast callback. Explicit "no rush" is low. Everything else is normal.
-- **Dashboard auth** uses a signed httpOnly cookie (SameSite=Strict, 12h). The API also accepts that cookie when no `Authorization` header is sent. With a header, the token must be right.
+- Text is saved exactly as typed. Nothing is trimmed. A name that is only spaces counts as empty.
+- Length limits count characters, so an emoji counts as 1.
+- Email must look like `name@domain.tld`. Phone is optional: digits, spaces and `+ ( ) - .`, max 30.
+- `service` must be lowercase, as in the brief.
+- The list returns the newest 500. An unknown `status` or `category` filter returns 400, not an empty list.
+- An id that isn't a number returns 404. Auth is checked first, so no token gives 401 even for a bad id.
+- PATCH with neither `status` nor `note` returns 400. Notes max out at 2000 characters.
+- Complaints are high urgency by default. "No rush" style messages are low.
+- The dashboard logs in with a signed cookie that lasts 12 hours. The API accepts that cookie when no Authorization header is sent.
 
-## What's missing / known limits
+## Not done
 
-- No rate limiting or captcha on the public form or the login. Spam and brute-force protection would come next.
-- One owner account from env vars. No users table, no password reset.
-- No pagination beyond the newest 500.
-- Webhooks aren't retried or signed. If `WEBHOOK_URL` is down, that event is lost (the lead is not).
+- No rate limit or captcha on the form or login.
+- One owner account, set by env vars.
+- No paging past 500 leads.
+- Webhooks aren't retried. If the webhook fails, that event is lost, but the lead is kept.
 
-## What I'd do next
+## Next steps
 
-1. Rate limit `POST /api/leads` and `/auth/login`, and add a honeypot field to the form.
-2. Webhook outbox table with retries and an HMAC signature header.
-3. Cursor pagination (`?before=<id>`) and search.
-4. Let the owner fix a wrong category or urgency from the dashboard, and log those fixes to tune the sorting.
+1. Rate limit the form and login, and add a honeypot field.
+2. Retry failed webhooks and sign them.
+3. Paging and search in the dashboard.
+4. Let the owner correct a lead's category or urgency.

@@ -75,7 +75,7 @@ function render(lead) {
   f('status').value = lead.status;
   f('note').value = lead.note;
   f('save').onclick = async () => {
-    f('save').disabled = true; f('msg').textContent = 'Saving…';
+    f('save').disabled = true; f('msg').textContent = 'Saving...';
     try {
       const updated = await api(`/api/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ status: f('status').value, note: f('note').value }) });
       f('msg').textContent = 'Saved';
@@ -90,7 +90,7 @@ async function load() {
   const q = new URLSearchParams();
   if ($('fStatus').value) q.set('status', $('fStatus').value);
   if ($('fCategory').value) q.set('category', $('fCategory').value);
-  $('listMsg').textContent = 'Loading…';
+  $('listMsg').textContent = 'Loading...';
   try {
     const { leads } = await api('/api/leads?' + q);
     $('list').replaceChildren(...leads.map(render));
